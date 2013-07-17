@@ -559,8 +559,8 @@ static void initialize_naturalwidth_host_guest_state(void) {
    field =  VMX_HOST_FS_BASE;
    field1 = VMX_GUEST_FS_BASE;
    asm volatile("mov $0xc0000100, %rcx\n");
-   asm volatile("rdmsr\n");
-   asm volatile ("mov %%rax, %0\n" : :"m"(fs_low) :"memory");
+   asm volatile("rdmsr\n" :"=a"(fs_low) : :"%rdx");
+   //asm volatile ("mov %%rax, %0\n" : :"m"(fs_low) :"memory");
    asm volatile ("shl $32, %%rdx\n" :"=d"(value));
    value|=fs_low;
    do_vmwrite64(field1,value); 
@@ -570,8 +570,8 @@ static void initialize_naturalwidth_host_guest_state(void) {
    field =  VMX_HOST_GS_BASE;
    field1 = VMX_GUEST_GS_BASE;
    asm volatile("mov $0xc0000101, %rcx\n");
-   asm volatile("rdmsr\n");
-   asm volatile ("mov %%rax, %0\n" : :"m"(gs_low) :"memory");
+   asm volatile("rdmsr\n" :"=a"(gs_low) : :"%rdx");
+   //asm volatile ("mov %%rax, %0\n" : :"m"(gs_low) :"memory");
    asm volatile ("shl $32, %%rdx\n" :"=d"(value));
    value|=gs_low;
    do_vmwrite64(field1,value); 
