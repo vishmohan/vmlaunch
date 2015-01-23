@@ -70,7 +70,9 @@ long int io_bitmap_b_phy_region = 0;
 long int msr_bitmap_phy_region = 0;
 long int virtual_apic_page_phy_region = 0;
 
+unsigned long value;
 long int rflags_value = 0;
+u16 tr_sel; //selector for task register
 
 static void do_vmclear(void); 
 static void restore_registers(void);
@@ -90,7 +92,6 @@ static unsigned long do_vmread(unsigned long field);
 
 
 static unsigned long do_vmread(unsigned long field) {
-        unsigned long value;
 	asm volatile (MY_VMX_VMREAD_RDX_RAX
 		      : "=a"(value) : "d"(field) : "cc");
 
@@ -179,9 +180,9 @@ static void initialize_16bit_host_guest_state(void) {
 
    field = VMX_HOST_TR_SEL;
    field1 = VMX_GUEST_TR_SEL;
-   asm("str %%ax\n" : "=a"(value));
-   do_vmwrite16(field,value); 
-   do_vmwrite16(field1,value); 
+   asm("str %%ax\n" : "=a"(tr_sel));
+   do_vmwrite16(field,tr_sel); 
+   do_vmwrite16(field1,tr_sel); 
 
    field = VMX_GUEST_LDTR_SEL;
    asm("sldt %%ax\n" : "=a"(value));
@@ -382,12 +383,15 @@ static void initialize_32bit_host_guest_state(void) {
    do_vmwrite32(field,value); 
 
    field = VMX_GUEST_TR_LIMIT;
-   asm("mov $0x40, %rax\n");
+   asm volatile("mov %%rax, %%rax"
+        : 
+        :"a"(tr_sel)
+      );
    asm("lsl %%eax, %%eax\n" :"=a"(value));
    do_vmwrite32(field,value); 
 
-   asm("str %%ax\n" : "=a"(sel_value));
-   asm("lar %%eax,%%eax\n" :"=a"(usable_ar) :"a"(sel_value)); 
+   //asm("str %%ax\n" : "=a"(sel_value));
+   asm("lar %%eax,%%eax\n" :"=a"(usable_ar) :"a"(tr_sel)); 
    usable_ar = usable_ar>>8;
 
    field = VMX_GUEST_TR_ATTR;
@@ -410,7 +414,8 @@ static void initialize_32bit_host_guest_state(void) {
    field = VMX_HOST_GDTR_BASE;
    do_vmwrite64(field,gdtb); 
 
-   trbase = gdtb + 0x40;
+   //trbase = gdtb + 0x40;
+   trbase = gdtb + tr_sel;
    if((trbase>>47&0x1)){
    trbase |= 0xffff000000000000ull;
    }
@@ -835,9 +840,7 @@ static void vmxon_exit(void) {
      do_vmxoff();
      vmxon_success = 0;
    }
-   save_registers();
    turn_off_vmxe();
-   restore_registers();
    deallocate_vmcs_region();
    deallocate_vmxon_region();
 }
@@ -930,6 +933,7 @@ static int vmxon_init(void) {
    asm ("movq $guest_entry_point, %rax");
    asm ("vmwrite %rax, %rdx");
 
+   printk("<1> Doing vmlaunch now..\n");
    asm volatile (MY_VMX_VMLAUNCH);
    asm volatile("jbe vmexit_handler\n");
    asm volatile("nop\n"); //will never get here
@@ -938,17 +942,27 @@ static int vmxon_init(void) {
    asm volatile("ud2\n"); //will never get here
    asm volatile("vmexit_handler:\n");
 
+   printk("<1> After vmexit\n");
+
    field_1 = VMX_EXIT_REASON;
    value_1 = do_vmread(field_1);
    printk("<1> Guest VMexit reason: 0x%x\n",value_1);
+
+   vmxon_exit(); //do vmxoff
    printk("<1> Enable Interrupts\n");
    asm volatile("sti\n");
-
-   printk("<1> Finished vmxon\n");
 finish_here:
+   printk("<1> Done\n");
+   restore_registers();
    return 0;
 }
 
 
+static void vmxon_exit_dummy(void) {
+
+
+
+}
+
 module_init(vmxon_init);
-module_exit(vmxon_exit);
+module_exit(vmxon_exit_dummy);
