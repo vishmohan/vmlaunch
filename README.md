@@ -11,3 +11,10 @@ to be initialized all of which is done by this driver. The driver also takes a s
 approach in setting up the guest state by making it mirror the host state. This makes 
 the design much simpler - for instance the guest does not need its own CR3, it shares 
 it with the host. Inline assembly is used generously throughout the driver.
+
+One possible concern:
+The VMCS does not have a host state field for LDTs. After a vmexit, the processor 
+loads the LDT selector to null. If a non-zero ldt selector is required before the 
+module exits then the code after vmexit may require a lldt <sel_value> to establish
+the ldtr to a good state.
+
